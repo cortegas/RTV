@@ -1,0 +1,148 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2636
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww14560\viewh12840\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 #QIIME2 code for RTV longitudinal analysis#\
+\
+#qiime import data#\
+\
+qiime tools import \\\
+  --type 'SampleData[PairedEndSequencesWithQuality]' \\\
+  --input-path FASTQ/  \
+  --input-format CasavaOneEightSingleLanePerSampleDirFmt \\ \
+  --output-path fastq.qza \
+\
+#visualization of the imported data#\
+qiime demux summarize \\\
+  --i-data fastq.qza \\\
+  --o-visualization fastq.qzv\
+\
+#make a decision to trim at 6 and truncate at 244 since the quality drop significantly below 25#\
+\
+#Quality control with DADA2. Denosing. \
+qiime dada2 denoise-single \\\
+  --i-demultiplexed-seqs fastq.qza \\\
+  --p-trim-left 6 \\\
+  --p-trunc-len 244 \\\
+  --o-representative-sequences dada2.qza \\\
+  --o-table table-dada2.qza \\\
+  --o-denoising-stats stats-dada2.qza\
+\
+#Visualize the outputs to make a decision in the depth sampling for diversity analyses#\
+\
+qiime feature-table summarize \\\
+  --i-table table-dada2.qza \\\
+  --o-visualization table-dada2.qzv \\\
+  --m-sample-metadata-file metadata.tsv\
+\
+#run into problems since the metadata is not complete and we are missing samples. Add those samples that are missing into the metadatada and re run the same code again#\
+\
+qiime feature-table summarize \\\
+  --i-table table-dada2.qza \\\
+  --o-visualization table-dada2.qzv \\\
+  --m-sample-metadata-file metadata.tsv\
+\
+#run into problems again due to labeling problems with samples. Need to go back to the FASTQ files and re run the denoising step.#\
+#samples required changing were RTV007_A. Need to delete de A and _#\
+#delete the sample RTV020_Z since there is a duplication on the RTV020_POST_Z#\
+\
+qiime tools import \\\
+  --type 'SampleData[PairedEndSequencesWithQuality]' \\\
+  --input-path FASTQ/  \
+  --input-format CasavaOneEightSingleLanePerSampleDirFmt \\ \
+  --output-path fastq.qza \
+\
+#visualization of the imported data#\
+qiime demux summarize \\\
+  --i-data fastq.qza \\\
+  --o-visualization fastq.qzv\
+\
+#make a decision to trim at 6 and truncate at 250 since the quality drop significantly below 25#\
+\
+#Quality control with DADA2. Denosing. \
+qiime dada2 denoise-single \\\
+  --i-demultiplexed-seqs fastq.qza \\\
+  --p-trim-left 6 \\\
+  --p-trunc-len 250 \\\
+  --o-representative-sequences seq-dada2.qza \\\
+  --o-table table-dada2.qza \\\
+  --o-denoising-stats stats-dada2.qza\
+\
+qiime feature-table summarize \\\
+  --i-table table-dada2.qza \\\
+  --o-visualization table-dada2.qzv \\\
+  --m-sample-metadata-file metadata.tsv\
+\
+qiime feature-table tabulate-seqs \\\
+  --i-data seq-dada2.qza \\\
+  --o-visualization seq-dada2.qzv\
+\
+#create a phylogenetic tree#\
+\
+qiime phylogeny align-to-tree-mafft-fasttree \\\
+  --i-sequences seq-dada2.qza \\\
+  --o-alignment aligned.qza \\\
+  --o-masked-alignment masked.qza \\\
+  --o-tree unrooted-tree.qza \\\
+  --o-rooted-tree rooted-tree.qza\
+\
+#Visualization of table-dada2.qza. Decide to choose the sampling depth of 20285 since it will keep all the samples with a high # of sequences#\
+qiime diversity core-metrics-phylogenetic \\\
+  --i-phylogeny rooted-tree.qza \\\
+  --i-table table-dada2.qza \\\
+  --p-sampling-depth 16387 \\\
+  --m-metadata-file metadata.tsv \\\
+  --output-dir core-metrics-results\
+\
+#longitudinal samples analysis#\
+qiime longitudinal pairwise-differences \
+--m-metadata-file metadata.tsv \
+--p-metadata-file shannon_vector.qza \
+--p-metric \'93shannon\'94\
+--p-state-column time \
+--p-state-1 PRE \
+--p-state-2 POST \
+--p-group-column group \
+--p-individual-id-column sample_id \
+--p-replicate-handling random \
+--o-visualization longitudinal/pairwise-differences_shannon.qzv\
+\
+\
+##problems with the input of the metric. Following error appears#\
+#Plugin error from longitudinal:\
+\
+  metric must be a valid metadata or feature table column.\
+\
+Debug info has been saved to /var/folders/bs/4s6gqzfn4v15p_mcs36ytm140000gn/T/qiime2-q2cli-err-nw8ipf6b.log#\
+\
+##Went back to the qiime2 docuements available at the website## \
+\
+https://forum.qiime2.org/t/p-metric-for-beta-diversity/4415/8\
+\
+\
+#10.27. I installed the plug-in empress to visualize the phylogenetic tree with it#\
+pip install empress\\\
+qiime dev refresh-cache\\\
+qiime empress --help\
+\
+qiime empress tree-plot\\\
+--i-tree rooted-tree.qza\\\
+--o-visualization core-metric-results/rooted-tree.qzv\
+\
+#Running into problems with the output of the tree. Not names of the bacterial appear on the tree#\
+#try the community-plot command#\
+qiime empress community-plot \\\
+--i-tree rooted-tree.qza\\\
+--i-feature-table table-dada2.qza\\\
+--m-sample-metadata-file metadata.tsv\\\
+--o-visualization core-metrics-results/community-tree.qzv\
+\
+#still need to reorganize the tree. Need to look at the documents online for the empress plugging#\
+\
+\
+\
+\
+}
